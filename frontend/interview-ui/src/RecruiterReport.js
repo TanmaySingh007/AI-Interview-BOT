@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './RecruiterReport.css';
 
 const RecruiterReport = ({ onBack }) => {
@@ -46,7 +46,7 @@ const RecruiterReport = ({ onBack }) => {
   };
 
   // Auto-refresh when AI processing is ongoing
-  React.useEffect(() => {
+  useEffect(() => {
     let interval;
     if (autoRefresh && interviewId) {
       interval = setInterval(() => {
@@ -60,6 +60,148 @@ const RecruiterReport = ({ onBack }) => {
 
   const formatPercentage = (percentage) => {
     return Math.round(percentage);
+  };
+
+  const renderQuestionReport = (question, index) => {
+    if (!question) return null;
+
+    const evaluation = question.evaluation || {};
+    const transcription = question.transcription || 'No transcription available';
+    const summary = question.summary || 'No summary available';
+
+    return (
+      <div key={index} className="question-report">
+        <h4>Question {index + 1}: {question.question_text || 'Unknown question'}</h4>
+        
+        <div className="question-details">
+          <div className="detail-section">
+            <h5>Video Transcription:</h5>
+            <p>{transcription}</p>
+          </div>
+          
+          <div className="detail-section">
+            <h5>AI Summary:</h5>
+            <p>{summary}</p>
+          </div>
+          
+          <div className="detail-section">
+            <h5>AI Evaluation:</h5>
+            {evaluation && typeof evaluation === 'object' ? (
+              <div className="evaluation-details">
+                <div className="evaluation-item">
+                  <strong>Skills Demonstrated:</strong>
+                  <ul>
+                    {(evaluation.skills_demonstrated || []).map((skill, i) => (
+                      <li key={i}>{skill}</li>
+                    ))}
+                  </ul>
+                </div>
+                
+                <div className="evaluation-item">
+                  <strong>Strengths:</strong>
+                  <ul>
+                    {(evaluation.strengths || []).map((strength, i) => (
+                      <li key={i}>{strength}</li>
+                    ))}
+                  </ul>
+                </div>
+                
+                <div className="evaluation-item">
+                  <strong>Areas for Improvement:</strong>
+                  <ul>
+                    {(evaluation.weaknesses || []).map((weakness, i) => (
+                      <li key={i}>{weakness}</li>
+                    ))}
+                  </ul>
+                </div>
+                
+                <div className="evaluation-item">
+                  <strong>Overall Assessment:</strong>
+                  <span className={`assessment-badge ${evaluation.overall_assessment?.toLowerCase() || 'unknown'}`}>
+                    {evaluation.overall_assessment || 'Not assessed'}
+                  </span>
+                </div>
+                
+                {evaluation.justification && (
+                  <div className="evaluation-item">
+                    <strong>Justification:</strong>
+                    <p>{evaluation.justification}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p>Evaluation not available</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderOverallSummary = () => {
+    if (!report.overall_evaluation) {
+      return (
+        <div className="overall-summary">
+          <h3>Overall Summary</h3>
+          <p>Overall evaluation is still being generated. Please wait a moment and refresh.</p>
+        </div>
+      );
+    }
+
+    const evaluation = report.overall_evaluation;
+    
+    return (
+      <div className="overall-summary">
+        <h3>Overall Interview Summary</h3>
+        
+        <div className="summary-section">
+          <h4>Overall Assessment: {evaluation.overall_assessment}</h4>
+          
+          <div className="summary-grid">
+            <div className="summary-item">
+              <h5>Key Insights:</h5>
+              <ul>
+                {(evaluation.key_insights || []).map((insight, i) => (
+                  <li key={i}>{insight}</li>
+                ))}
+              </ul>
+            </div>
+            
+            <div className="summary-item">
+              <h5>Recommendations:</h5>
+              <ul>
+                {(evaluation.recommendations || []).map((rec, i) => (
+                  <li key={i}>{rec}</li>
+                ))}
+              </ul>
+            </div>
+            
+            <div className="summary-item">
+              <h5>Strengths:</h5>
+              <ul>
+                {(evaluation.strengths || []).map((strength, i) => (
+                  <li key={i}>{strength}</li>
+                ))}
+              </ul>
+            </div>
+            
+            <div className="summary-item">
+              <h5>Areas for Improvement:</h5>
+              <ul>
+                {(evaluation.areas_for_improvement || []).map((area, i) => (
+                  <li key={i}>{area}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          
+          <div className="final-recommendation">
+            <h5>Final Recommendation:</h5>
+            <p className="recommendation-text">{evaluation.final_recommendation}</p>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -108,182 +250,31 @@ const RecruiterReport = ({ onBack }) => {
 
       {report && (
         <div className="report-content">
-          <div className="report-header">
+          <div className="report-header-info">
             <h3>Interview Report</h3>
-            <div className="completion-status">
-              <span className="status-label">Completion:</span>
-              <span className="status-value">
-                {report.completion_status.completed} of {report.completion_status.total} questions 
-                ({formatPercentage(report.completion_status.percentage)}%)
-              </span>
+            <div className="report-meta">
+              <p><strong>Interview ID:</strong> {report.interview_id}</p>
+              <p><strong>Role:</strong> {report.role_title}</p>
+              <p><strong>Status:</strong> {report.ai_processing_complete ? 'Completed' : 'Processing'}</p>
+              <p><strong>Questions:</strong> {report.completed_questions || 0} / {report.total_questions || 0}</p>
             </div>
           </div>
 
-          <div className="interview-info">
-            <div className="info-item">
-              <strong>Role:</strong> {report.interview_data.role_title}
-            </div>
-            <div className="info-item">
-              <strong>Interview ID:</strong> {report.interview_data.interview_id}
-            </div>
-            <div className="info-item">
-              <strong>Candidate ID:</strong> {report.interview_data.candidate_id}
-            </div>
-          </div>
-
-          <div className="greeting-section">
-            <h4>AI Greeting</h4>
-            <p className="greeting-text">{report.interview_data.greeting_text}</p>
-          </div>
-
-          <div className="questions-section">
-            <h4>Interview Questions & Answers</h4>
-            {report.interview_data.questions.map((question, index) => (
-              <div key={index} className="question-item">
-                <div className="question-header">
-                  <h5>Question {index + 1}</h5>
-                  {question.video_path && (
-                    <span className="status-badge completed">Completed</span>
-                  )}
-                </div>
-                
-                <p className="question-text">{question.question_text}</p>
-                
-                {question.video_path ? (
-                  <div className="answer-details">
-                    <div className="video-section">
-                      <h6>Recorded Answer:</h6>
-                      <video 
-                        controls 
-                        className="answer-video"
-                        src={`http://localhost:5000/${question.video_path}`}
-                      >
-                        Your browser does not support the video tag.
-                      </video>
-                    </div>
-                    
-                    <div className="ai-analysis">
-                      <div className="analysis-item">
-                        <h6>Transcription:</h6>
-                        <p>{question.transcription}</p>
-                      </div>
-                      
-                      <div className="analysis-item">
-                        <h6>Summary:</h6>
-                        <p>{question.summary}</p>
-                      </div>
-                      
-                      <div className="analysis-item">
-                        <h6>Evaluation:</h6>
-                        {typeof question.evaluation === 'object' ? (
-                          <div className="evaluation-details">
-                            {question.evaluation.overall_assessment && (
-                              <div className="eval-item">
-                                <strong>Assessment:</strong> {question.evaluation.overall_assessment}
-                              </div>
-                            )}
-                            {question.evaluation.skills_demonstrated && (
-                              <div className="eval-item">
-                                <strong>Skills:</strong> {question.evaluation.skills_demonstrated.join(', ')}
-                              </div>
-                            )}
-                            {question.evaluation.strengths && (
-                              <div className="eval-item">
-                                <strong>Strengths:</strong> {question.evaluation.strengths.join(', ')}
-                              </div>
-                            )}
-                            {question.evaluation.weaknesses && (
-                              <div className="eval-item">
-                                <strong>Areas for Improvement:</strong> {question.evaluation.weaknesses.join(', ')}
-                              </div>
-                            )}
-                            {question.evaluation.justification && (
-                              <div className="eval-item">
-                                <strong>Justification:</strong> {question.evaluation.justification}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <p>{question.evaluation}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="no-answer">
-                    <p>No answer recorded for this question.</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {report.interview_data.overall_evaluation && (
-            <div className="overall-evaluation">
-              <h4>Overall Evaluation</h4>
-              {typeof report.interview_data.overall_evaluation === 'object' ? (
-                <div className="evaluation-details">
-                  <div className="evaluation-item">
-                    <h5>Overall Assessment</h5>
-                    <p className="assessment">{report.interview_data.overall_evaluation.overall_assessment}</p>
-                  </div>
-                  
-                  {report.interview_data.overall_evaluation.key_insights && (
-                    <div className="evaluation-item">
-                      <h5>Key Insights</h5>
-                      <ul>
-                        {report.interview_data.overall_evaluation.key_insights.map((insight, index) => (
-                          <li key={index}>{insight}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {report.interview_data.overall_evaluation.recommendations && (
-                    <div className="evaluation-item">
-                      <h5>Recommendations</h5>
-                      <ul>
-                        {report.interview_data.overall_evaluation.recommendations.map((rec, index) => (
-                          <li key={index}>{rec}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {report.interview_data.overall_evaluation.strengths && (
-                    <div className="evaluation-item">
-                      <h5>Strengths</h5>
-                      <ul>
-                        {report.interview_data.overall_evaluation.strengths.map((strength, index) => (
-                          <li key={index}>{strength}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {report.interview_data.overall_evaluation.areas_for_improvement && (
-                    <div className="evaluation-item">
-                      <h5>Areas for Improvement</h5>
-                      <ul>
-                        {report.interview_data.overall_evaluation.areas_for_improvement.map((area, index) => (
-                          <li key={index}>{area}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {report.interview_data.overall_evaluation.final_recommendation && (
-                    <div className="evaluation-item">
-                      <h5>Final Recommendation</h5>
-                      <p className="final-recommendation">{report.interview_data.overall_evaluation.final_recommendation}</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p>{report.interview_data.overall_evaluation}</p>
-              )}
+          {report.greeting_text && (
+            <div className="greeting-section">
+              <h4>Interview Greeting:</h4>
+              <p>{report.greeting_text}</p>
             </div>
           )}
+
+          {report.questions && report.questions.length > 0 && (
+            <div className="questions-section">
+              <h4>Question Responses:</h4>
+              {report.questions.map((question, index) => renderQuestionReport(question, index))}
+            </div>
+          )}
+
+          {renderOverallSummary()}
         </div>
       )}
     </div>

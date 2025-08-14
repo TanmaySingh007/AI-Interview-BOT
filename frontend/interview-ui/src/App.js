@@ -1,43 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Mic, 
-  Video, 
-  Play, 
-  Pause, 
-  Square, 
-  CheckCircle, 
-  ArrowRight, 
-  ArrowLeft,
-  Trophy,
-  Star,
-  Zap,
-  Target,
-  Users,
-  Briefcase,
-  Sparkles,
-  Rocket
-} from 'lucide-react';
+import { Rocket, Target, Sparkles, Briefcase, ArrowRight, Trophy, Star } from 'lucide-react';
+import ParticleBackground from './ParticleBackground';
 import VideoRecorder from './VideoRecorder';
 import RecruiterReport from './RecruiterReport';
-import ParticleBackground from './ParticleBackground';
 import './App.css';
 
 const App = () => {
   const [currentView, setCurrentView] = useState('start');
-  const [selectedRole, setSelectedRole] = useState('');
+  const [selectedRole, setSelectedRole] = useState(null);
+  const [useCustomRole, setUseCustomRole] = useState(false);
   const [customRole, setCustomRole] = useState('');
   const [customDescription, setCustomDescription] = useState('');
-  const [useCustomRole, setUseCustomRole] = useState(false);
   const [interviewData, setInterviewData] = useState(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [uploadedVideoPath, setUploadedVideoPath] = useState(null);
-  const [roles, setRoles] = useState([]);
-  const [roleDescriptions, setRoleDescriptions] = useState({});
-  const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [uploadedVideoPath, setUploadedVideoPath] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Predefined roles with stunning descriptions
   const predefinedRoles = [
     {
       title: "Software Engineer",
@@ -47,57 +27,67 @@ const App = () => {
     },
     {
       title: "Data Scientist",
-      description: "Join our data-driven revolution! We need a Data Scientist who can transform raw data into actionable insights. You'll be building machine learning models, conducting advanced analytics, and helping us make data-informed decisions that drive business growth.",
+      description: "Join our data science team to unlock insights from massive datasets and build machine learning models that drive business decisions. You'll work with cutting-edge AI technologies, develop predictive models, and communicate complex findings to stakeholders.",
       icon: "📊",
       color: "#10B981"
     },
     {
       title: "Product Manager",
-      description: "Lead the future of product development! As a Product Manager, you'll be the bridge between business strategy and technical execution. You'll define product vision, prioritize features, and work with cross-functional teams to deliver exceptional user experiences.",
+      description: "Lead product strategy and execution for innovative digital products. You'll work with cross-functional teams, conduct user research, define product roadmaps, and ensure successful product launches that delight users and drive business growth.",
       icon: "🎯",
       color: "#F59E0B"
     },
     {
       title: "UX Designer",
-      description: "Create experiences that users love! We're looking for a UX Designer who can craft intuitive, beautiful, and functional interfaces. You'll conduct user research, create wireframes and prototypes, and ensure our products are both aesthetically pleasing and highly usable.",
+      description: "Create exceptional user experiences through thoughtful design, user research, and prototyping. You'll collaborate with product and engineering teams to design intuitive interfaces that solve real user problems and drive engagement.",
       icon: "🎨",
       color: "#F87171"
     },
     {
       title: "DevOps Engineer",
-      description: "Build the infrastructure that powers our future! As a DevOps Engineer, you'll design and maintain our cloud infrastructure, implement CI/CD pipelines, and ensure our systems are scalable, secure, and reliable. Experience with AWS, Docker, and Kubernetes is a plus.",
-      icon: "⚡",
+      description: "Build and maintain robust infrastructure and deployment pipelines. You'll work with cloud technologies, implement CI/CD processes, ensure system reliability, and optimize performance for scalable applications.",
+      icon: "⚙️",
       color: "#14B8A6"
     }
   ];
 
-  useEffect(() => {
-    fetchRoles();
-  }, []);
+  const handleRoleChange = (role) => {
+    setSelectedRole(role);
+    setUseCustomRole(false);
+    setCustomRole('');
+    setCustomDescription('');
+  };
 
-  const fetchRoles = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/roles');
-      const data = await response.json();
-      if (data.status === 'success') {
-        setRoles(data.roles);
-        setRoleDescriptions(data.role_descriptions);
-      }
-    } catch (error) {
-      console.error('Error fetching roles:', error);
+  const handleCustomRoleToggle = () => {
+    setUseCustomRole(!useCustomRole);
+    if (!useCustomRole) {
+      setSelectedRole(null);
+    } else {
+      setCustomRole('');
+      setCustomDescription('');
     }
   };
 
   const startInterview = async () => {
-    if (!selectedRole.title) {
+    // Check if a role is selected (either predefined or custom)
+    if (!selectedRole && !useCustomRole) {
       alert('Please select a role first!');
       return;
     }
 
+    if (useCustomRole && (!customRole.trim() || !customDescription.trim())) {
+      alert('Please fill in both role title and description for custom role!');
+      return;
+    }
+
     setLoading(true);
-    setCurrentView('interview');
 
     try {
+      // Determine which role data to use
+      const roleData = useCustomRole 
+        ? { title: customRole, description: customDescription }
+        : selectedRole;
+
       // First, test if backend is reachable
       const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
       
@@ -119,8 +109,8 @@ const App = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          role_title: selectedRole.title,
-          role_description: selectedRole.description
+          role_title: roleData.title,
+          role_description: roleData.description
         }),
       });
 
@@ -131,9 +121,14 @@ const App = () => {
       const data = await response.json();
       
       if (data.status === 'success') {
-        setInterviewData(data);
+        setInterviewData({
+          ...data,
+          role_title: roleData.title,
+          role_description: roleData.description
+        });
         setCurrentQuestionIndex(0);
         setProgress((1 / data.total_questions) * 100);
+        setCurrentView('interview');
       } else {
         throw new Error(data.error || 'Failed to start interview');
       }
@@ -163,58 +158,45 @@ const App = () => {
   };
 
   const submitAnswer = async () => {
-    if (!uploadedVideoPath) return;
+    if (!uploadedVideoPath) {
+      alert('Please record a video answer first!');
+      return;
+    }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/submit-answer/${interviewData.interview_id}/${currentQuestionIndex}`, {
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+      const response = await fetch(`${backendUrl}/api/submit-answer/${interviewData.interview_id}/${currentQuestionIndex}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ video_path: uploadedVideoPath })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          video_path: uploadedVideoPath
+        }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
+      
       if (data.status === 'success') {
+        // Move to next question or complete interview
         if (currentQuestionIndex < interviewData.questions.length - 1) {
           setCurrentQuestionIndex(currentQuestionIndex + 1);
+          setProgress(((currentQuestionIndex + 2) / interviewData.questions.length) * 100);
           setUploadedVideoPath(null);
-          setProgress(((currentQuestionIndex + 1) / interviewData.questions.length) * 100);
         } else {
-          await generateOverallSummary();
+          // Interview completed
           setCurrentView('completion');
         }
+      } else {
+        throw new Error(data.error || 'Failed to submit answer');
       }
     } catch (error) {
       console.error('Error submitting answer:', error);
-    }
-  };
-
-  const generateOverallSummary = async () => {
-    try {
-      const response = await fetch(`http://localhost:5000/api/generate-overall-summary/${interviewData.interview_id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Overall summary generated:', data);
-      }
-    } catch (err) {
-      console.error('Error generating overall summary:', err);
-    }
-  };
-
-  const handleRoleChange = (role) => {
-    setSelectedRole(role);
-    setUseCustomRole(false);
-  };
-
-  const handleCustomRoleToggle = () => {
-    setUseCustomRole(!useCustomRole);
-    if (!useCustomRole) {
-      setSelectedRole('');
-    } else {
-      setCustomRole('');
-      setCustomDescription('');
+      alert(`Failed to submit answer: ${error.message}`);
     }
   };
 
@@ -327,37 +309,30 @@ const App = () => {
               <textarea
                 value={customDescription}
                 onChange={(e) => setCustomDescription(e.target.value)}
-                placeholder="Describe the role, responsibilities, and requirements..."
+                placeholder="Describe the role, requirements, and responsibilities..."
                 className="custom-textarea"
                 rows={4}
               />
             </div>
           </motion.div>
         ) : (
-          <div className="role-grid">
+          <div className="roles-grid">
             {predefinedRoles.map((role, index) => (
               <motion.div
                 key={role.title}
-                className={`role-card ${selectedRole === role.title ? 'selected' : ''}`}
+                className={`role-card ${selectedRole && selectedRole.title === role.title ? 'selected' : ''}`}
                 onClick={() => handleRoleChange(role)}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                whileHover={{ scale: 1.05, y: -5 }}
-                whileTap={{ scale: 0.95 }}
-                style={{ '--role-color': role.color }}
+                transition={{ duration: 0.5, delay: 0.1 * index }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <div className="role-icon">{role.icon}</div>
+                <div className="role-icon" style={{ color: role.color }}>
+                  {role.icon}
+                </div>
                 <h3>{role.title}</h3>
-                <p>{role.description.substring(0, 120)}...</p>
-                <motion.div 
-                  className="selection-indicator"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: selectedRole === role.title ? 1 : 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <CheckCircle size={24} />
-                </motion.div>
+                <p>{role.description}</p>
               </motion.div>
             ))}
           </div>
@@ -366,24 +341,22 @@ const App = () => {
         <motion.button
           className="start-btn"
           onClick={startInterview}
-          disabled={loading || (!useCustomRole && !selectedRole) || (useCustomRole && (!customRole || !customDescription))}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 1.5 }}
+          disabled={loading || (!selectedRole && !useCustomRole) || (useCustomRole && (!customRole.trim() || !customDescription.trim()))}
+          whileHover={{ scale: loading ? 1 : 1.05 }}
+          whileTap={{ scale: loading ? 1 : 0.95 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 1.2 }}
         >
           {loading ? (
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            >
-              <Zap size={24} />
-            </motion.div>
+            <>
+              <div className="loading-spinner"></div>
+              Starting Interview...
+            </>
           ) : (
             <>
-              <Play size={24} />
-              Start Interview
+              <Rocket size={20} />
+              Start AI Interview
             </>
           )}
         </motion.button>
@@ -393,12 +366,12 @@ const App = () => {
           onClick={() => setCurrentView('report')}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 1.7 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 1.4 }}
         >
-          <Users size={20} />
-          View Reports
+          <Star size={20} />
+          View Interview Reports
         </motion.button>
       </motion.div>
     </motion.div>
@@ -420,7 +393,7 @@ const App = () => {
         </button>
         <h2>Interview in Progress</h2>
         <div className="role-badge">
-          {interviewData.role_title}
+          {interviewData?.role_title || 'Unknown Role'}
         </div>
       </div>
       
@@ -432,7 +405,7 @@ const App = () => {
           transition={{ duration: 0.8 }}
         />
         <span className="progress-text">
-          Question {currentQuestionIndex + 1} of {interviewData.questions.length}
+          Question {currentQuestionIndex + 1} of {interviewData?.questions?.length || 0}
         </span>
       </div>
 
@@ -463,7 +436,7 @@ const App = () => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.5 }}
         >
-          {interviewData.greeting}
+          {interviewData?.greeting || 'Welcome to your AI interview!'}
         </motion.p>
       </motion.div>
 
@@ -485,7 +458,7 @@ const App = () => {
             {currentQuestionIndex + 1}
           </motion.div>
           <h2 className="question-text">
-            {interviewData.questions[currentQuestionIndex]}
+            {interviewData?.questions?.[currentQuestionIndex] || 'Loading question...'}
           </h2>
         </div>
 
@@ -506,7 +479,7 @@ const App = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.8 }}
         >
-          {currentQuestionIndex < interviewData.questions.length - 1 ? (
+          {currentQuestionIndex < (interviewData?.questions?.length || 0) - 1 ? (
             <>
               Next Question
               <ArrowRight size={20} />
@@ -563,12 +536,12 @@ const App = () => {
         <div className="interview-id-display">
           <input 
             type="text" 
-            value={interviewData.interview_id} 
+            value={interviewData?.interview_id || 'No ID available'} 
             readOnly 
             className="interview-id-input" 
           />
           <motion.button 
-            onClick={() => navigator.clipboard.writeText(interviewData.interview_id)}
+            onClick={() => navigator.clipboard.writeText(interviewData?.interview_id || '')}
             className="copy-btn"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -595,7 +568,7 @@ const App = () => {
             animate={{ scale: 1 }}
             transition={{ duration: 0.5, delay: 1.3 }}
           >
-            <span className="stat-number">{interviewData.questions.length}</span>
+            <span className="stat-number">{interviewData?.questions?.length || 0}</span>
             <span className="stat-label">Questions Answered</span>
           </motion.div>
           <motion.div 
@@ -604,7 +577,7 @@ const App = () => {
             animate={{ scale: 1 }}
             transition={{ duration: 0.5, delay: 1.5 }}
           >
-            <span className="stat-number">{interviewData.role_title}</span>
+            <span className="stat-number">{interviewData?.role_title || 'Unknown'}</span>
             <span className="stat-label">Position Applied</span>
           </motion.div>
         </div>
