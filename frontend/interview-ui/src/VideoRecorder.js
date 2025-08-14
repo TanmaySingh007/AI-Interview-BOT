@@ -54,10 +54,18 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
   }, [startCamera]);
 
   useEffect(() => {
-    if (stream && videoRef.current && !cameraInitialized) {
+    if (stream && videoRef.current) {
+      console.log('Setting video stream:', stream);
       videoRef.current.srcObject = stream;
-      setCameraInitialized(true);
+      videoRef.current.play().catch(err => console.log('Auto-play prevented:', err));
     }
+  }, [stream]);
+
+  // Debug effect to check stream status
+  useEffect(() => {
+    console.log('Stream state:', stream);
+    console.log('Camera initialized:', cameraInitialized);
+    console.log('Video ref:', videoRef.current);
   }, [stream, cameraInitialized]);
 
   const startRecording = () => {
@@ -188,6 +196,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
         <video
           ref={videoRef}
           autoPlay
+          playsInline
           muted
           className="video-preview"
         />

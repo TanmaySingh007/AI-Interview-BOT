@@ -38,9 +38,7 @@ p, span, label, input, textarea, button {
   position: relative;
   margin-bottom: 20px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  transform: translateZ(0); /* Force hardware acceleration */
-  backface-visibility: hidden; /* Prevent flickering */
-  perspective: 1000px; /* Improve 3D rendering */
+  display: block;
 }
 
 .video-preview video {
@@ -48,9 +46,8 @@ p, span, label, input, textarea, button {
   height: 100%;
   object-fit: cover;
   border-radius: 12px;
-  transform: translateZ(0); /* Force hardware acceleration */
-  backface-visibility: hidden; /* Prevent flickering */
-  will-change: transform; /* Optimize for animations */
+  display: block;
+  background: #000;
 }
 
 /* Recording Indicator */
