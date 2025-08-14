@@ -1,0 +1,3 @@
+[33m83698be[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Fix RecruiterReport component: resolve undefined 'completed' property error and improve report display
+[33md91fabf[m[33m ([m[1;31morigin/master[m[33m)[m Add Vercel deployment configuration and deployment-ready code
+[33ma736dbb[m Initial commit: AI Interview Bot with OpenAI integration, React frontend, and Flask backend
