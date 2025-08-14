@@ -1,21 +1,33 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, Video, Play, Pause, Square, CheckCircle, Upload, AlertCircle, Circle, RotateCcw, Loader } from 'lucide-react';
 import './VideoRecorder.css';
+import { Square, Mic, Video, Upload, CheckCircle, AlertCircle } from 'lucide-react';
 
 const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackButton = false }) => {
   const [isRecording, setIsRecording] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [videoReady, setVideoReady] = useState(false);
-  const [stream, setStream] = useState(null);
+  const [recordedChunks, setRecordedChunks] = useState([]);
   const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [recordedBlob, setRecordedBlob] = useState(null);
-  
+  const [stream, setStream] = useState(null);
+  const [error, setError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   const videoRef = useRef(null);
   const chunksRef = useRef([]);
-  const previewRef = useRef(null);
+
+  const startCamera = useCallback(async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+      setStream(mediaStream);
+      setError(null);
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      setError('Failed to access camera. Please check permissions and try again.');
+    }
+  }, []);
 
   useEffect(() => {
     startCamera();
@@ -24,23 +36,15 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [startCamera, stream]);
 
-  const startCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
-        audio: true
-      });
-      setStream(mediaStream);
+  useEffect(() => {
+    if (stream) {
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+        videoRef.current.srcObject = stream;
       }
-    } catch (err) {
-      setError('Unable to access camera and microphone');
-      console.error('Error accessing media devices:', err);
     }
-  };
+  }, [stream]);
 
   const startRecording = () => {
     if (!stream) {
@@ -50,7 +54,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
 
     try {
       chunksRef.current = [];
-      setVideoReady(false);
+      setRecordedChunks([]); // Clear previous chunks
       setError(null);
       setUploadProgress(0);
       
@@ -66,7 +70,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        setRecordedBlob(blob);
+        setRecordedChunks(chunksRef.current); // Store chunks for playback
         handleRecordingComplete(blob);
       };
 
@@ -87,7 +91,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
   };
 
   const handleRecordingComplete = async (blob) => {
-    setVideoReady(true);
+    setUploading(true);
     const filePath = await uploadVideo(blob);
     if (filePath) {
       console.log('Video uploaded successfully:', filePath);
@@ -100,7 +104,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
       return;
     }
 
-    setIsUploading(true);
+    setUploading(true);
     setUploadProgress(0);
 
     try {
@@ -126,22 +130,23 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
       
       // Reset recording state
       chunksRef.current = [];
-      setIsUploading(false);
+      setRecordedChunks([]); // Clear chunks for next recording
+      setUploading(false);
       setUploadProgress(0);
       
     } catch (error) {
       console.error('Error uploading video:', error);
       alert('Failed to upload video. Please try again.');
-      setIsUploading(false);
+      setUploading(false);
       setUploadProgress(0);
     }
   };
 
   const retryRecording = () => {
     setError(null);
-    setVideoReady(false);
+    setRecordedChunks([]); // Clear chunks for retry
     setUploadProgress(0);
-    setRecordedBlob(null);
+    setUploading(false);
     if (onVideoUploaded) {
       onVideoUploaded(null);
     }
@@ -208,7 +213,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
         </AnimatePresence>
 
         <AnimatePresence>
-          {uploadProgress > 0 && uploadProgress < 100 && (
+          {uploading && uploadProgress > 0 && uploadProgress < 100 && (
             <motion.div 
               className="upload-progress"
               initial={{ opacity: 0, y: 20 }}
@@ -231,7 +236,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
         </AnimatePresence>
 
         <AnimatePresence>
-          {videoReady && !isUploading && (
+          {recordedChunks.length > 0 && !uploading && (
             <motion.div 
               className="video-ready"
               initial={{ opacity: 0, scale: 0.8 }}
@@ -248,7 +253,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
 
       <div className="video-controls">
         <AnimatePresence mode="wait">
-          {!isRecording && !videoReady ? (
+          {!isRecording && !recordedChunks.length && !uploading ? (
             <motion.button
               key="start"
               className="record-btn start"
@@ -298,7 +303,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
         </AnimatePresence>
       </div>
 
-      {recordedBlob && (
+      {recordedChunks.length > 0 && (
         <motion.div 
           className="recorded-video"
           initial={{ opacity: 0, y: 20 }}
@@ -307,7 +312,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
         >
           <h4>Your Recorded Answer</h4>
           <video
-            src={URL.createObjectURL(recordedBlob)}
+            src={URL.createObjectURL(new Blob(recordedChunks, { type: 'video/webm' }))}
             controls
             className="playback-video"
           />

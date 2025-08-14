@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './RecruiterReport.css';
 
 const RecruiterReport = ({ onBack }) => {
@@ -9,7 +9,7 @@ const RecruiterReport = ({ onBack }) => {
   const [processingStatus, setProcessingStatus] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     if (!interviewId.trim()) {
       setError('Please enter an interview ID');
       return;
@@ -43,7 +43,7 @@ const RecruiterReport = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [interviewId]);
 
   // Auto-refresh when AI processing is ongoing
   useEffect(() => {
@@ -56,11 +56,7 @@ const RecruiterReport = ({ onBack }) => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [autoRefresh, interviewId]);
-
-  const formatPercentage = (percentage) => {
-    return Math.round(percentage);
-  };
+  }, [autoRefresh, interviewId, fetchReport]);
 
   const renderQuestionReport = (question, index) => {
     if (!question) return null;

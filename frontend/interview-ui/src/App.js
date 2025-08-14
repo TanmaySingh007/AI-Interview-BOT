@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Rocket, Target, Sparkles, Briefcase, ArrowRight, Trophy, Star } from 'lucide-react';
+import { Rocket, Target, Sparkles, ArrowRight, Trophy, Star } from 'lucide-react';
 import ParticleBackground from './ParticleBackground';
 import VideoRecorder from './VideoRecorder';
 import RecruiterReport from './RecruiterReport';
