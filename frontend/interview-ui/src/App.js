@@ -89,66 +89,62 @@ const App = () => {
   };
 
   const startInterview = async () => {
+    if (!selectedRole.title) {
+      alert('Please select a role first!');
+      return;
+    }
+
     setLoading(true);
+    setCurrentView('interview');
+
     try {
-      const roleTitle = useCustomRole ? customRole : selectedRole;
-      const roleDescription = useCustomRole ? customDescription : roleDescriptions[selectedRole];
-
-      console.log('Starting interview with:', { roleTitle, roleDescription });
-
       // First, test if backend is reachable
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+      
       try {
-        const healthCheck = await fetch('http://localhost:5000/health');
+        const healthCheck = await fetch(`${backendUrl}/health`);
         if (!healthCheck.ok) {
           throw new Error(`Backend health check failed: ${healthCheck.status}`);
         }
         console.log('Backend health check passed');
       } catch (healthError) {
         console.error('Backend health check failed:', healthError);
-        throw new Error('Cannot connect to backend. Please ensure the backend server is running on port 5000.');
+        throw new Error('Cannot connect to backend. Please ensure the backend server is running.');
       }
 
-      const response = await fetch('http://localhost:5000/api/start-interview', {
+      // Start the interview
+      const response = await fetch(`${backendUrl}/api/start-interview`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role_title: roleTitle, role_description: roleDescription })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          role_title: selectedRole.title,
+          role_description: selectedRole.description
+        }),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response not ok:', errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Response data:', data);
-
+      
       if (data.status === 'success') {
-        console.log('Interview started successfully:', data);
-        setInterviewData({
-          interview_id: data.interview_id,
-          greeting: data.greeting,
-          questions: data.questions,
-          role_title: roleTitle,
-          role_description: roleDescription
-        });
-        setCurrentView('interview');
-        setProgress(0);
+        setInterviewData(data);
+        setCurrentQuestionIndex(0);
+        setProgress((1 / data.total_questions) * 100);
       } else {
-        console.error('Interview start failed:', data);
         throw new Error(data.error || 'Failed to start interview');
       }
     } catch (error) {
       console.error('Error starting interview:', error);
       let errorMessage = error.message;
-      
+
       if (error.message.includes('Failed to fetch')) {
-        errorMessage = 'Cannot connect to backend server. Please ensure:\n1. Backend is running on port 5000\n2. No firewall is blocking the connection\n3. Both frontend and backend are running';
+        errorMessage = 'Cannot connect to backend server. Please ensure:\n1. Backend is running\n2. No firewall is blocking the connection\n3. Both frontend and backend are running';
       }
-      
+
       alert(`Failed to start interview:\n\n${errorMessage}`);
     } finally {
       setLoading(false);
@@ -343,7 +339,7 @@ const App = () => {
               <motion.div
                 key={role.title}
                 className={`role-card ${selectedRole === role.title ? 'selected' : ''}`}
-                onClick={() => handleRoleChange(role.title)}
+                onClick={() => handleRoleChange(role)}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}

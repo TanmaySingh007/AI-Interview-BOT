@@ -4,36 +4,43 @@ import threading
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-from ai_service import ai_service
 import datetime
+import tempfile
+import shutil
+
+# Import AI service
+try:
+    from ai_service import AIService
+    ai_service = AIService()
+except ImportError:
+    # Fallback for deployment
+    ai_service = None
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "http://localhost:3001"]}})
 
-# Configuration
-UPLOAD_FOLDER = 'uploads/videos'
-ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'}
+# Configure CORS for Vercel deployment
+CORS(app, resources={r"/*": {"origins": ["*"]}})
 
-# Create uploads directory if it doesn't exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Configure upload folder for Vercel
+UPLOAD_FOLDER = '/tmp/uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
-# Mock data storage
-mock_role_descriptions = {
-    "Software Engineer": "We are looking for a skilled software engineer with experience in full-stack development, particularly in React and Python. The ideal candidate should have strong problem-solving skills and experience with modern development practices.",
-    "Data Scientist": "We are seeking a data scientist with expertise in machine learning, statistical analysis, and data visualization. Experience with Python, R, and SQL is required.",
-    "Product Manager": "We need a product manager with experience in agile methodologies, user research, and product strategy. Strong communication and leadership skills are essential.",
-    "UX Designer": "We are looking for a UX designer with a strong portfolio demonstrating user-centered design principles, wireframing, and prototyping skills.",
-    "DevOps Engineer": "We need a DevOps engineer with experience in CI/CD pipelines, cloud platforms (AWS/Azure/GCP), and infrastructure as code."
-}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
 
+# In-memory storage for interview data (for demo purposes)
+# In production, use a database
 candidate_interview_data = {}
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
+# Health check endpoint
 @app.route('/')
 def home():
-    return jsonify({"message": "AI Interview Bot Backend is running!"})
+    return jsonify({
+        "message": "AI Interview Bot Backend",
+        "status": "running",
+        "timestamp": str(datetime.datetime.now())
+    })
 
 @app.route('/health')
 def health():
@@ -41,67 +48,79 @@ def health():
         "status": "healthy",
         "message": "Backend is running",
         "timestamp": str(datetime.datetime.now()),
-        "cors_origins": ["http://localhost:3000", "http://localhost:3001"]
+        "cors_origins": ["*"]
     })
 
 @app.route('/api/test')
 def test():
-    return jsonify({"status": "success", "message": "Backend API is working!"})
+    return jsonify({
+        "message": "API is working!",
+        "timestamp": str(datetime.datetime.now())
+    })
 
 @app.route('/api/test-ai')
 def test_ai():
     try:
-        # Test AI service
-        greeting = ai_service.generate_interview_greeting("Software Engineer")
-        questions = ai_service.generate_interview_questions("Software Engineer", "Mock Description") # Assuming a mock description for testing
-        
-        return jsonify({
-            "status": "success",
-            "message": "AI service is working!",
-            "ai_has_api_key": ai_service.has_api_key,
-            "test_greeting": greeting,
-            "test_questions_count": len(questions),
-            "test_questions": questions[:2]  # Show first 2 questions
-        })
+        if ai_service:
+            # Test AI service
+            greeting = ai_service.generate_interview_greeting("Software Engineer")
+            questions = ai_service.generate_interview_questions("Software Engineer", "Mock Description")
+            
+            return jsonify({
+                "status": "success",
+                "message": "AI service is working!",
+                "greeting": greeting,
+                "questions": questions,
+                "timestamp": str(datetime.datetime.now())
+            })
+        else:
+            return jsonify({
+                "status": "warning",
+                "message": "AI service not available in deployment mode",
+                "timestamp": str(datetime.datetime.now())
+            })
     except Exception as e:
         return jsonify({
             "status": "error",
             "message": f"AI service test failed: {str(e)}",
-            "ai_has_api_key": ai_service.has_api_key
-        }), 500
-
-@app.route('/api/roles', methods=['GET'])
-def get_roles():
-    return jsonify({
-        "status": "success",
-        "roles": list(mock_role_descriptions.keys()),
-        "role_descriptions": mock_role_descriptions
-    })
-
-@app.route('/api/upload-video', methods=['POST'])
-def upload_video():
-    if 'videoFile' not in request.files:
-        return jsonify({"error": "No video file provided"}), 400
-    
-    file = request.files['videoFile']
-    if file.filename == '':
-        return jsonify({"error": "No file selected"}), 400
-    
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        # Add unique identifier to prevent filename conflicts
-        unique_filename = f"{uuid.uuid4()}_{filename}"
-        file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
-        file.save(file_path)
-        
-        return jsonify({
-            "status": "success",
-            "message": "Video uploaded successfully",
-            "file_path": file_path,
-            "filename": unique_filename
+            "timestamp": str(datetime.datetime.now())
         })
-    
-    return jsonify({"error": "Invalid file type"}), 400
+
+@app.route('/api/roles')
+def get_roles():
+    roles = [
+        {
+            "title": "Software Engineer",
+            "description": "We're seeking a brilliant Software Engineer to join our innovative team. You'll be crafting cutting-edge applications, solving complex technical challenges, and contributing to products that impact millions of users worldwide. Experience with modern frameworks, cloud technologies, and a passion for clean code is essential.",
+            "icon": "💻",
+            "color": "#8B5CF6"
+        },
+        {
+            "title": "Data Scientist",
+            "description": "Join our data science team to unlock insights from massive datasets and build machine learning models that drive business decisions. You'll work with cutting-edge AI technologies, develop predictive models, and communicate complex findings to stakeholders.",
+            "icon": "📊",
+            "color": "#10B981"
+        },
+        {
+            "title": "Product Manager",
+            "description": "Lead product strategy and execution for innovative digital products. You'll work with cross-functional teams, conduct user research, define product roadmaps, and ensure successful product launches that delight users and drive business growth.",
+            "icon": "🎯",
+            "color": "#F59E0B"
+        },
+        {
+            "title": "UX Designer",
+            "description": "Create exceptional user experiences through thoughtful design, user research, and prototyping. You'll collaborate with product and engineering teams to design intuitive interfaces that solve real user problems and drive engagement.",
+            "icon": "🎨",
+            "color": "#F87171"
+        },
+        {
+            "title": "DevOps Engineer",
+            "description": "Build and maintain robust infrastructure and deployment pipelines. You'll work with cloud technologies, implement CI/CD processes, ensure system reliability, and optimize performance for scalable applications.",
+            "icon": "⚙️",
+            "color": "#14B8A6"
+        }
+    ]
+    return jsonify(roles)
 
 @app.route('/api/start-interview', methods=['POST'])
 def start_interview():
@@ -109,28 +128,23 @@ def start_interview():
     role_title = data.get('role_title')
     role_description = data.get('role_description')
     
-    print(f"Starting interview for role: {role_title}")
-    print(f"Role description: {role_description[:100]}...")
-    
     if not role_title:
-        print("Error: No role title provided")
         return jsonify({"error": "Role title is required"}), 400
     
     # Generate unique interview ID
     interview_id = str(uuid.uuid4())
-    print(f"Generated interview ID: {interview_id}")
     
     try:
-        print("Generating AI greeting...")
-        # Generate AI greeting using OpenAI
-        greeting_text = ai_service.generate_interview_greeting(role_title)
-        print(f"Greeting generated: {greeting_text[:100]}...")
-        
-        print("Generating AI questions...")
-        # Generate AI questions using OpenAI
-        questions = ai_service.generate_interview_questions(role_title, role_description)
-        print(f"Questions generated: {len(questions)} questions")
-        print(f"First question: {questions[0] if questions else 'None'}")
+        if ai_service:
+            # Generate AI greeting using OpenAI
+            greeting_text = ai_service.generate_interview_greeting(role_title)
+            
+            # Generate AI questions using OpenAI
+            questions = ai_service.generate_interview_questions(role_title, role_description)
+        else:
+            # Fallback for deployment
+            greeting_text = f"Hello! Welcome to your interview for the {role_title} position. I'm excited to learn more about your experience and skills. Let's begin with some questions to better understand your background and capabilities."
+            questions = get_randomized_fallback_questions(role_title)
         
         # Store interview data
         candidate_interview_data[interview_id] = {
@@ -154,20 +168,14 @@ def start_interview():
             "total_questions": len(questions)
         }
         
-        print(f"Interview started successfully. Response: {response_data}")
         return jsonify(response_data)
         
     except Exception as e:
-        print(f"Error in start_interview: {e}")
-        import traceback
-        traceback.print_exc()
-        
         # Fallback to static content if AI fails
         greeting_text = f"Hello! Welcome to your interview for the {role_title} position. I'm excited to learn more about your experience and skills. Let's begin with some questions to better understand your background and capabilities."
         
         # Use fallback questions with randomization
         questions = get_randomized_fallback_questions(role_title)
-        print(f"Using fallback questions: {len(questions)} questions")
         
         candidate_interview_data[interview_id] = {
             "candidate_id": str(uuid.uuid4()),
@@ -190,7 +198,6 @@ def start_interview():
             "total_questions": len(questions)
         }
         
-        print(f"Fallback interview started. Response: {response_data}")
         return jsonify(response_data)
 
 def get_randomized_fallback_questions(role_title):
@@ -341,16 +348,22 @@ def submit_answer(interview_id, question_index):
     # Start AI processing in background thread
     def process_ai_analysis():
         try:
-            # Step 1: Transcribe video
-            transcription = ai_service.transcribe_video(video_path)
-            
-            # Step 2: Generate summary
-            question_text = interview_data['questions'][question_index]['question_text']
-            summary = ai_service.generate_answer_summary(question_text, transcription)
-            
-            # Step 3: Generate evaluation
-            role_description = interview_data['role_description']
-            evaluation = generate_unique_evaluation(role_description, question_text, transcription, question_index)
+            if ai_service:
+                # Step 1: Transcribe video
+                transcription = ai_service.transcribe_video(video_path)
+                
+                # Step 2: Generate summary
+                question_text = interview_data['questions'][question_index]['question_text']
+                summary = ai_service.generate_answer_summary(question_text, transcription)
+                
+                # Step 3: Generate evaluation
+                role_description = interview_data['role_description']
+                evaluation = ai_service.generate_evaluation(role_description, question_text, transcription)
+            else:
+                # Fallback for deployment
+                transcription = f"[DEMO] Video transcription for question {question_index + 1}"
+                summary = f"[DEMO] Summary of answer for question {question_index + 1}"
+                evaluation = generate_unique_evaluation(interview_data['role_description'], interview_data['questions'][question_index]['question_text'], transcription, question_index)
             
             # Update the data with AI results
             interview_data['questions'][question_index].update({
@@ -359,10 +372,7 @@ def submit_answer(interview_id, question_index):
                 "evaluation": evaluation
             })
             
-            print(f"AI processing completed for interview {interview_id}, question {question_index}")
-            
         except Exception as e:
-            print(f"Error in AI processing: {e}")
             # Set fallback values if AI processing fails
             interview_data['questions'][question_index].update({
                 "transcription": f"[ERROR] Transcription failed for question {question_index + 1}",
@@ -511,10 +521,8 @@ def generate_overall_summary(interview_id):
                 )
                 
                 interview_data['overall_evaluation'] = overall_summary
-                print(f"Overall summary generated for interview {interview_id}")
             
         except Exception as e:
-            print(f"Error generating overall summary: {e}")
             interview_data['overall_evaluation'] = generate_fallback_overall_summary(interview_data['role_title'])
     
     # Start background processing
@@ -680,46 +688,35 @@ def generate_fallback_overall_summary(role_title):
         "final_recommendation": "Manual review required"
     }
 
-@app.route('/api/get-report/<interview_id>', methods=['GET'])
+@app.route('/api/get-report/<interview_id>')
 def get_report(interview_id):
     if interview_id not in candidate_interview_data:
         return jsonify({"error": "Interview not found"}), 404
     
     interview_data = candidate_interview_data[interview_id]
     
-    # Calculate completion status
-    completed_questions = sum(1 for q in interview_data['questions'] if q['video_path'] is not None)
-    total_questions = len(interview_data['questions'])
-    
-    # Check AI processing status
+    # Check if AI processing is complete
     ai_processing_complete = True
     for question in interview_data['questions']:
-        if question.get('video_path') and (
-            question.get('transcription') == "Processing..." or 
-            question.get('summary') == "Processing..." or 
-            question.get('evaluation') == "Processing..."
-        ):
+        if question.get('transcription') == "Processing..." or question.get('summary') == "Processing..." or question.get('evaluation') == "Processing...":
             ai_processing_complete = False
             break
     
-    return jsonify({
-        "status": "success",
-        "interview_data": interview_data,
-        "completion_status": {
-            "completed": completed_questions,
-            "total": total_questions,
-            "percentage": (completed_questions / total_questions * 100) if total_questions > 0 else 0
-        },
-        "ai_processing_complete": ai_processing_complete
-    })
+    # Prepare report data
+    report_data = {
+        "interview_id": interview_id,
+        "candidate_id": interview_data['candidate_id'],
+        "role_title": interview_data['role_title'],
+        "role_description": interview_data['role_description'],
+        "greeting_text": interview_data['greeting_text'],
+        "questions": interview_data['questions'],
+        "overall_evaluation": interview_data.get('overall_evaluation'),
+        "ai_processing_complete": ai_processing_complete,
+        "total_questions": len(interview_data['questions']),
+        "completed_questions": sum(1 for q in interview_data['questions'] if q.get('transcription') and q.get('transcription') != "Processing...")
+    }
+    
+    return jsonify(report_data)
 
-@app.route('/uploads/videos/<filename>')
-def serve_video(filename):
-    """Serve uploaded video files."""
-    try:
-        return send_from_directory(UPLOAD_FOLDER, filename)
-    except Exception as e:
-        return jsonify({"error": "Video not found"}), 404
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
