@@ -11,50 +11,64 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
   const [error, setError] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [cameraInitialized, setCameraInitialized] = useState(false);
 
   const videoRef = useRef(null);
   const chunksRef = useRef([]);
+  const streamRef = useRef(null);
 
   const startCamera = useCallback(async () => {
     try {
+      // Only start camera if not already initialized
+      if (cameraInitialized && streamRef.current) {
+        return;
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
+        video: { 
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        }, 
         audio: true 
       });
+      
+      streamRef.current = mediaStream;
       setStream(mediaStream);
+      setCameraInitialized(true);
       setError(null);
     } catch (err) {
       console.error('Error accessing camera:', err);
       setError('Failed to access camera. Please check permissions and try again.');
     }
-  }, []);
+  }, [cameraInitialized]);
 
   useEffect(() => {
     startCamera();
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
     };
-  }, [startCamera, stream]);
+  }, [startCamera]);
 
   useEffect(() => {
-    if (stream) {
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+    if (stream && videoRef.current && !cameraInitialized) {
+      videoRef.current.srcObject = stream;
+      setCameraInitialized(true);
     }
-  }, [stream]);
+  }, [stream, cameraInitialized]);
 
   const startRecording = () => {
-    if (!stream) {
+    if (!stream || !cameraInitialized) {
       setError('Camera not available');
       return;
     }
 
     try {
       chunksRef.current = [];
-      setRecordedChunks([]); // Clear previous chunks
+      setRecordedChunks([]);
       setError(null);
       setUploadProgress(0);
       
@@ -70,7 +84,7 @@ const VideoRecorder = ({ onVideoUploaded, onRecordingComplete, onBack, showBackB
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        setRecordedChunks(chunksRef.current); // Store chunks for playback
+        setRecordedChunks(chunksRef.current);
         handleRecordingComplete(blob);
       };
 
